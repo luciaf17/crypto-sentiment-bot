@@ -28,3 +28,9 @@ pandas==2.1.4
 # Utils
 python-dotenv==1.0.0
 httpx==0.26.0
+
+# Sentiment Analysis
+tweepy==4.14.0
+textblob==0.17.1
+vaderSentiment==3.3.2
+snscrape==0.7.0.20230622  # ← AGREGAR ESTA LÍNEA

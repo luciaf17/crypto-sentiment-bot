@@ -22,8 +22,13 @@ celery_app.conf.update(
             "task": "app.tasks.price_tasks.collect_btc_price",
             "schedule": 300.0,  # 5 minutes in seconds
         },
+        "analyze-btc-sentiment-every-15-minutes": {
+            "task": "app.tasks.sentiment_tasks.analyze_btc_sentiment",
+            "schedule": 900.0,  # 15 minutes in seconds
+        },
     },
 )
 
 # IMPORTANTE: Importar las tasks EXPLÍCITAMENTE
 from app.tasks import price_tasks  # noqa: E402, F401
+from app.tasks import sentiment_tasks  # noqa: E402, F401
