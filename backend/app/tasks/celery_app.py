@@ -26,9 +26,14 @@ celery_app.conf.update(
             "task": "app.tasks.sentiment_tasks.analyze_btc_sentiment",
             "schedule": 900.0,  # 15 minutes in seconds
         },
+        "generate-trading-signal-every-hour": {
+            "task": "app.tasks.signal_tasks.generate_trading_signal",
+            "schedule": 3600.0,  # 1 hour in seconds
+        },
     },
 )
 
 # IMPORTANTE: Importar las tasks EXPLÍCITAMENTE
 from app.tasks import price_tasks  # noqa: E402, F401
 from app.tasks import sentiment_tasks  # noqa: E402, F401
+from app.tasks import signal_tasks  # noqa: E402, F401
