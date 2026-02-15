@@ -1,3 +1,4 @@
+from .backtest import BacktestRun
 from .base import Base
 from .trading import (
     PriceHistory,
@@ -9,6 +10,7 @@ from .trading import (
 )
 
 __all__ = [
+    "BacktestRun",
     "Base",
     "PriceHistory",
     "SentimentScore",

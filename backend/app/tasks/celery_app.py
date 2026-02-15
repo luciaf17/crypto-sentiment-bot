@@ -30,6 +30,10 @@ celery_app.conf.update(
             "task": "app.tasks.signal_tasks.generate_trading_signal",
             "schedule": 3600.0,  # 1 hour in seconds
         },
+        "execute-paper-trades-every-5-minutes": {
+            "task": "app.tasks.trading_tasks.execute_paper_trades",
+            "schedule": 300.0,  # 5 minutes in seconds
+        },
     },
 )
 
@@ -37,3 +41,4 @@ celery_app.conf.update(
 from app.tasks import price_tasks  # noqa: E402, F401
 from app.tasks import sentiment_tasks  # noqa: E402, F401
 from app.tasks import signal_tasks  # noqa: E402, F401
+from app.tasks import trading_tasks  # noqa: E402, F401

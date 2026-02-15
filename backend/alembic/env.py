@@ -23,6 +23,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 from app.config import get_settings
 from app.models.base import Base
 from app.models.trading import PriceHistory, SentimentScore, Signal, Trade
+from app.models.backtest import BacktestRun
 
 # Configurar la URL de la base de datos desde settings
 settings = get_settings()
