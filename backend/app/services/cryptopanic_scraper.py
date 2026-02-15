@@ -13,7 +13,7 @@ settings = get_settings()
 class CryptoPanicScraper:
     """Fetches crypto news and sentiment from CryptoPanic API."""
 
-    BASE_URL = "https://cryptopanic.com/api/v1/posts/"
+    BASE_URL = "https://cryptopanic.com/api/developer/v2/posts/"
 
     def __init__(self) -> None:
         self.api_key = settings.cryptopanic_api_key
@@ -36,9 +36,8 @@ class CryptoPanicScraper:
             return []
 
         params = {
-            "auth_token": self.api_key,
-            "currencies": currencies,
-            "public": "true",
+        "auth_token": self.api_key,
+        "currencies": currencies,
         }
 
         max_retries = 3
