@@ -19,14 +19,11 @@ python-binance==1.0.19
 
 # Sentiment Analysis
 tweepy==4.14.0
-snscrape==0.7.0.20230622
 textblob==0.17.1
 vaderSentiment==3.3.2
 
 # Technical Analysis
-TA-Lib==0.4.28
 pandas==2.1.4
-pandas-ta==0.3.14b0
 
 # Utils
 python-dotenv==1.0.0
