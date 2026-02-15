@@ -15,39 +15,71 @@ logger = logging.getLogger(__name__)
     max_retries=3,
 )
 def analyze_btc_sentiment(self) -> dict:
-    """Celery task to fetch and analyze BTC tweet sentiment.
+    """Celery task to fetch and analyze BTC sentiment from multiple sources.
 
     Returns:
-        Dictionary with symbol, average score, and count of tweets analyzed.
+        Dictionary with per-source stats and weighted average.
     """
     symbol = "BTC"
-    logger.info("Starting sentiment analysis task for %s", symbol)
+    logger.info("Starting multi-source sentiment analysis for %s", symbol)
 
     try:
         analyzer = SentimentAnalyzer()
+        source_data = analyzer.fetch_all_sources(symbol)
 
-        query = f"${symbol} OR #{symbol} crypto"
-        tweets = analyzer.fetch_tweets(query)
-
-        if not tweets:
-            logger.warning("No tweets found for %s, skipping", symbol)
-            return {"symbol": symbol, "avg_score": 0.0, "tweet_count": 0}
-
-        scores = [analyzer.analyze_sentiment(t["text"]) for t in tweets]
-        avg_score = sum(scores) / len(scores)
-
-        analyzer.save_sentiment_scores(symbol, tweets, scores)
+        cp_count = source_data["cryptopanic"]["count"]
+        news_count = source_data["newsapi"]["count"]
+        cp_avg = source_data["cryptopanic"]["avg_score"]
+        news_avg = source_data["newsapi"]["avg_score"]
+        fg_score = source_data["fear_greed"]["score"]
+        fg_class = source_data["fear_greed"]["classification"]
+        weighted_avg = source_data["weighted_avg"]
 
         logger.info(
-            "Sentiment analysis completed for %s: avg=%.4f, tweets=%d",
+            "Source stats for %s: CryptoPanic=%d items (avg=%.4f), "
+            "NewsAPI=%d items (avg=%.4f), Fear&Greed=%.4f (%s)",
             symbol,
-            avg_score,
-            len(tweets),
+            cp_count,
+            cp_avg,
+            news_count,
+            news_avg,
+            fg_score,
+            fg_class,
         )
+
+        total_items = cp_count + news_count + 1  # +1 for Fear & Greed
+        if total_items <= 1 and cp_count == 0 and news_count == 0:
+            logger.warning(
+                "No news items from CryptoPanic or NewsAPI for %s", symbol
+            )
+
+        # Save all scores to database
+        records = analyzer.save_sentiment_scores(symbol, source_data)
+
+        logger.info(
+            "Sentiment analysis completed for %s: "
+            "weighted_avg=%.4f, total_records=%d",
+            symbol,
+            weighted_avg,
+            len(records),
+        )
+
         return {
             "symbol": symbol,
-            "avg_score": round(avg_score, 4),
-            "tweet_count": len(tweets),
+            "weighted_avg": round(weighted_avg, 4),
+            "cryptopanic": {
+                "count": cp_count,
+                "avg_score": round(cp_avg, 4),
+            },
+            "newsapi": {
+                "count": news_count,
+                "avg_score": round(news_avg, 4),
+            },
+            "fear_greed": {
+                "score": round(fg_score, 4),
+                "classification": fg_class,
+            },
+            "total_records_saved": len(records),
         }
 
     except Exception as e:

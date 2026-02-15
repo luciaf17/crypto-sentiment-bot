@@ -1,132 +1,214 @@
 import logging
-import time
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 
 from vaderSentiment.vaderSentiment import SentimentIntensityAnalyzer
 
 from app.database import SessionLocal
 from app.models.trading import SentimentScore
 
-from .twitter_scraper import TwitterScraper
+from .cryptopanic_scraper import CryptoPanicScraper
+from .fear_greed_index import FearGreedIndex
+from .newsapi_scraper import NewsAPIScraper
 
 logger = logging.getLogger(__name__)
 
+# Source weights for composite score
+WEIGHT_CRYPTOPANIC = 0.40
+WEIGHT_NEWSAPI = 0.40
+WEIGHT_FEAR_GREED = 0.20
+
 
 class SentimentAnalyzer:
-    """Analyzes sentiment of cryptocurrency-related tweets."""
+    """Multi-source sentiment analyzer for cryptocurrencies."""
 
     def __init__(self) -> None:
-        self.scraper = TwitterScraper()
+        self.cryptopanic = CryptoPanicScraper()
+        self.newsapi = NewsAPIScraper()
+        self.fear_greed = FearGreedIndex()
         self.vader = SentimentIntensityAnalyzer()
 
-    def fetch_tweets(self, query: str, limit: int = 20) -> list[dict]:
-        """Fetch recent tweets for a query with rate-limit handling.
-
-        Args:
-            query: Search query string.
-            limit: Maximum number of tweets to fetch.
-
-        Returns:
-            List of tweet dicts from TwitterScraper.
-        """
-        max_retries = 3
-        for attempt in range(max_retries):
-            try:
-                since_date = datetime.now(timezone.utc) - timedelta(hours=24)
-                return self.scraper.search_tweets(
-                    query=query, limit=limit, since_date=since_date
-                )
-            except Exception as e:
-                wait = 2 ** (attempt + 1)
-                logger.warning(
-                    "Rate limit or error fetching tweets (attempt %d/%d): %s. "
-                    "Retrying in %ds...",
-                    attempt + 1,
-                    max_retries,
-                    e,
-                    wait,
-                )
-                time.sleep(wait)
-
-        logger.error("Failed to fetch tweets after %d attempts", max_retries)
-        return []
-
-    def analyze_sentiment(self, text: str) -> float:
+    def analyze_text(self, text: str) -> float:
         """Analyze the sentiment of a text string using VADER.
 
-        Args:
-            text: The text to analyze.
-
         Returns:
-            Compound sentiment score between -1 (negative) and 1 (positive).
+            Compound sentiment score between -1 and 1.
         """
         scores = self.vader.polarity_scores(text)
         return scores["compound"]
 
-    def process_tweets(self, symbol: str) -> float:
-        """Fetch tweets about a symbol, analyze sentiment, and return average.
+    def fetch_all_sources(self, symbol: str) -> dict:
+        """Fetch sentiment data from all sources for a symbol.
 
         Args:
-            symbol: Cryptocurrency symbol (e.g. 'BTC').
+            symbol: Cryptocurrency symbol (e.g. "BTC").
 
         Returns:
-            Average sentiment score, or 0.0 if no tweets found.
+            Dict with per-source scores, items, and weighted average.
         """
-        query = f"${symbol} OR #{symbol} crypto"
-        logger.info("Processing tweets for symbol %s", symbol)
+        result: dict = {
+            "symbol": symbol,
+            "cryptopanic": {"items": [], "avg_score": 0.0, "count": 0},
+            "newsapi": {"items": [], "avg_score": 0.0, "count": 0},
+            "fear_greed": {"score": 0.0, "value": 50, "classification": "Neutral"},
+            "weighted_avg": 0.0,
+        }
 
-        tweets = self.fetch_tweets(query)
-        if not tweets:
-            logger.warning("No tweets found for %s", symbol)
-            return 0.0
+        # --- CryptoPanic ---
+        cp_posts = self.cryptopanic.get_news(currencies=symbol)
+        cp_scores: list[float] = []
+        for post in cp_posts:
+            vader_score = self.analyze_text(post["title"])
+            # Blend VADER text score with vote-based sentiment
+            vote_score = post.get("sentiment_score", 0.0)
+            combined = (vader_score + vote_score) / 2.0
+            cp_scores.append(combined)
+            result["cryptopanic"]["items"].append(
+                {
+                    "text": post["title"],
+                    "score": combined,
+                    "source_name": post.get("source_name", ""),
+                    "published_at": post.get("published_at", ""),
+                    "url": post.get("url", ""),
+                }
+            )
+        if cp_scores:
+            result["cryptopanic"]["avg_score"] = sum(cp_scores) / len(cp_scores)
+            result["cryptopanic"]["count"] = len(cp_scores)
 
-        scores: list[float] = []
-        for tweet in tweets:
-            score = self.analyze_sentiment(tweet["text"])
-            scores.append(score)
+        # --- NewsAPI ---
+        query = f"{symbol} cryptocurrency"
+        articles = self.newsapi.get_crypto_news(query=query)
+        news_scores: list[float] = []
+        for article in articles:
+            text = f"{article['title']} {article.get('description', '') or ''}"
+            score = self.analyze_text(text)
+            news_scores.append(score)
+            result["newsapi"]["items"].append(
+                {
+                    "text": article["title"],
+                    "description": article.get("description", ""),
+                    "score": score,
+                    "source": article.get("source", ""),
+                    "published_at": article.get("published_at", ""),
+                    "url": article.get("url", ""),
+                }
+            )
+        if news_scores:
+            result["newsapi"]["avg_score"] = sum(news_scores) / len(news_scores)
+            result["newsapi"]["count"] = len(news_scores)
 
-        avg_score = sum(scores) / len(scores)
+        # --- Fear & Greed Index ---
+        fg = self.fear_greed.get_current()
+        result["fear_greed"] = {
+            "score": fg["normalized_score"],
+            "value": fg["value"],
+            "classification": fg["classification"],
+        }
+
+        # --- Weighted average ---
+        cp_avg = result["cryptopanic"]["avg_score"]
+        news_avg = result["newsapi"]["avg_score"]
+        fg_score = result["fear_greed"]["score"]
+
+        # Only include sources that returned data in the weighting
+        total_weight = 0.0
+        weighted_sum = 0.0
+
+        if result["cryptopanic"]["count"] > 0:
+            weighted_sum += WEIGHT_CRYPTOPANIC * cp_avg
+            total_weight += WEIGHT_CRYPTOPANIC
+
+        if result["newsapi"]["count"] > 0:
+            weighted_sum += WEIGHT_NEWSAPI * news_avg
+            total_weight += WEIGHT_NEWSAPI
+
+        # Fear & Greed always contributes (free API, no key needed)
+        weighted_sum += WEIGHT_FEAR_GREED * fg_score
+        total_weight += WEIGHT_FEAR_GREED
+
+        if total_weight > 0:
+            result["weighted_avg"] = weighted_sum / total_weight
+
         logger.info(
-            "Sentiment for %s: avg=%.4f from %d tweets",
+            "Multi-source sentiment for %s: "
+            "CryptoPanic=%.4f (%d items), NewsAPI=%.4f (%d items), "
+            "Fear&Greed=%.4f (%s), weighted_avg=%.4f",
             symbol,
-            avg_score,
-            len(scores),
+            cp_avg,
+            result["cryptopanic"]["count"],
+            news_avg,
+            result["newsapi"]["count"],
+            fg_score,
+            fg["classification"],
+            result["weighted_avg"],
         )
-        return avg_score
+
+        return result
 
     def save_sentiment_scores(
-        self, symbol: str, tweets: list[dict], scores: list[float]
+        self, symbol: str, source_data: dict
     ) -> list[SentimentScore]:
-        """Save individual sentiment scores to the database.
+        """Save individual sentiment scores from all sources to the database.
 
         Args:
             symbol: Cryptocurrency symbol.
-            tweets: List of tweet dicts.
-            scores: Corresponding sentiment scores.
+            source_data: Result from fetch_all_sources().
 
         Returns:
             List of saved SentimentScore records.
         """
         session = SessionLocal()
         records: list[SentimentScore] = []
+        now = datetime.now(timezone.utc)
+
         try:
-            for tweet, score in zip(tweets, scores):
+            # Save CryptoPanic items
+            for item in source_data["cryptopanic"]["items"]:
                 record = SentimentScore(
                     symbol=symbol,
-                    score=score,
-                    source="twitter",
-                    raw_text=tweet["text"][:500],
-                    timestamp=tweet["created_at"],
+                    score=item["score"],
+                    source="cryptopanic",
+                    raw_text=item["text"][:500],
+                    timestamp=now,
                 )
                 session.add(record)
                 records.append(record)
+
+            # Save NewsAPI items
+            for item in source_data["newsapi"]["items"]:
+                record = SentimentScore(
+                    symbol=symbol,
+                    score=item["score"],
+                    source="newsapi",
+                    raw_text=item["text"][:500],
+                    timestamp=now,
+                )
+                session.add(record)
+                records.append(record)
+
+            # Save Fear & Greed as a single record
+            fg = source_data["fear_greed"]
+            record = SentimentScore(
+                symbol=symbol,
+                score=fg["score"],
+                source="fear_greed",
+                raw_text=f"Fear & Greed Index: {fg['value']} ({fg['classification']})",
+                timestamp=now,
+            )
+            session.add(record)
+            records.append(record)
 
             session.commit()
             for r in records:
                 session.refresh(r)
 
             logger.info(
-                "Saved %d sentiment scores for %s", len(records), symbol
+                "Saved %d sentiment scores for %s "
+                "(cryptopanic=%d, newsapi=%d, fear_greed=1)",
+                len(records),
+                symbol,
+                source_data["cryptopanic"]["count"],
+                source_data["newsapi"]["count"],
             )
             return records
 

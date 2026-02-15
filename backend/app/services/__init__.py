@@ -1,5 +1,13 @@
+from .cryptopanic_scraper import CryptoPanicScraper
+from .fear_greed_index import FearGreedIndex
+from .newsapi_scraper import NewsAPIScraper
 from .price_collector import PriceCollectorService
 from .sentiment_analyzer import SentimentAnalyzer
-from .twitter_scraper import TwitterScraper
 
-__all__ = ["PriceCollectorService", "SentimentAnalyzer", "TwitterScraper"]
+__all__ = [
+    "CryptoPanicScraper",
+    "FearGreedIndex",
+    "NewsAPIScraper",
+    "PriceCollectorService",
+    "SentimentAnalyzer",
+]
