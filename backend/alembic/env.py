@@ -24,6 +24,7 @@ from app.config import get_settings
 from app.models.base import Base
 from app.models.trading import PriceHistory, SentimentScore, Signal, Trade
 from app.models.backtest import BacktestRun
+from app.models.strategy import StrategyConfig
 
 # Configurar la URL de la base de datos desde settings
 settings = get_settings()

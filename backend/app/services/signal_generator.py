@@ -8,11 +8,10 @@ includes a confidence score and detailed reasoning.
 import logging
 from datetime import datetime, timedelta, timezone
 
-from sqlalchemy import desc
-
 from app.database import SessionLocal
 from app.models.trading import Signal, SignalAction, SentimentScore
 from app.services.technical_indicators import TechnicalIndicators
+from app.services.strategy_manager import StrategyManager
 
 logger = logging.getLogger(__name__)
 
@@ -20,17 +19,13 @@ logger = logging.getLogger(__name__)
 class SignalGenerator:
     """Generates trading signals by combining technical and sentiment analysis.
 
-    Signal rules:
-    - BUY: RSI < 35 (oversold) AND sentiment > 0 (positive) AND price < MA(50)
-    - SELL: RSI > 65 (overbought) AND sentiment < 0 (negative) AND price > MA(50)
+    Signal rules are determined by the active strategy configuration:
+    - BUY: RSI < threshold AND sentiment > min AND price < MA(50)
+    - SELL: RSI > threshold AND sentiment < 0 AND price > MA(50)
     - HOLD: any other condition
 
     Confidence is calculated as the proportion of conditions met (0-1).
     """
-
-    # Thresholds for signal generation
-    RSI_OVERSOLD = 35
-    RSI_OVERBOUGHT = 65
 
     def __init__(self) -> None:
         self.indicators = TechnicalIndicators()
@@ -84,9 +79,8 @@ class SignalGenerator:
         """Generate a BUY/SELL/HOLD signal for the given symbol.
 
         Combines technical indicators with sentiment analysis to produce
-        a trading signal. The decision logic evaluates three conditions
-        for both BUY and SELL, and calculates confidence based on how
-        strongly conditions are met.
+        a trading signal. The decision logic evaluates conditions based on
+        the active strategy configuration.
 
         Args:
             symbol: Trading pair symbol (e.g., "BTC/USDT").
@@ -94,6 +88,9 @@ class SignalGenerator:
         Returns:
             Signal ORM object (unsaved) or None if indicators unavailable.
         """
+        # Get active strategy parameters
+        params = StrategyManager.get_active_params()
+        
         # Fetch technical indicators
         tech_data = self.indicators.get_indicators_for_symbol(symbol)
         if tech_data is None:
@@ -115,21 +112,23 @@ class SignalGenerator:
         reasons["sentiment"] = sentiment
         reasons["current_price"] = current_price
         reasons["ma_50"] = ma_50
+        reasons["strategy_params"] = {
+            "rsi_buy": params["rsi_buy"],
+            "rsi_sell": params["rsi_sell"],
+            "sentiment_min": params["sentiment_min"],
+        }
 
-        # Evaluate BUY conditions
-        # 1. RSI < 35 (oversold — potential reversal upward)
-        # 2. Sentiment > 0 (market mood is positive)
-        # 3. Price below MA(50) (price is below its medium-term average — undervalued)
+        # Evaluate BUY conditions using strategy params
         buy_conditions = 0
         buy_total = 3
 
-        if rsi is not None and rsi < self.RSI_OVERSOLD:
+        if rsi is not None and rsi < params["rsi_buy"]:
             buy_conditions += 1
             reasons["rsi_signal"] = "oversold"
         elif rsi is not None:
-            reasons["rsi_signal"] = "neutral" if rsi <= self.RSI_OVERBOUGHT else "overbought"
+            reasons["rsi_signal"] = "neutral" if rsi <= params["rsi_sell"] else "overbought"
 
-        if sentiment is not None and sentiment > 0:
+        if sentiment is not None and sentiment > params["sentiment_min"]:
             buy_conditions += 1
             reasons["sentiment_signal"] = "positive"
         elif sentiment is not None:
@@ -141,14 +140,11 @@ class SignalGenerator:
         elif ma_50 is not None:
             reasons["price_vs_ma50"] = "above"
 
-        # Evaluate SELL conditions
-        # 1. RSI > 65 (overbought — potential reversal downward)
-        # 2. Sentiment < 0 (market mood is negative)
-        # 3. Price above MA(50) (price is above medium-term average — overvalued)
+        # Evaluate SELL conditions using strategy params
         sell_conditions = 0
         sell_total = 3
 
-        if rsi is not None and rsi > self.RSI_OVERBOUGHT:
+        if rsi is not None and rsi > params["rsi_sell"]:
             sell_conditions += 1
 
         if sentiment is not None and sentiment < 0:
@@ -161,16 +157,14 @@ class SignalGenerator:
         if buy_conditions == buy_total:
             action = SignalAction.BUY
             confidence = 1.0
-            reasons["decision"] = "All BUY conditions met: oversold RSI, positive sentiment, price below MA(50)"
+            reasons["decision"] = f"All BUY conditions met: RSI<{params['rsi_buy']:.1f}, sentiment>{params['sentiment_min']:.2f}, price<MA(50)"
         elif sell_conditions == sell_total:
             action = SignalAction.SELL
             confidence = 1.0
-            reasons["decision"] = "All SELL conditions met: overbought RSI, negative sentiment, price above MA(50)"
+            reasons["decision"] = f"All SELL conditions met: RSI>{params['rsi_sell']:.1f}, negative sentiment, price>MA(50)"
         else:
             action = SignalAction.HOLD
-            # Confidence for HOLD reflects how close we are to a signal.
-            # Higher values of partial conditions = lower confidence in hold
-            # (i.e., market is closer to triggering a directional signal).
+            # Confidence for HOLD reflects how close we are to a signal
             max_partial = max(buy_conditions, sell_conditions)
             confidence = round(1.0 - (max_partial / 3.0), 2)
             reasons["decision"] = (
@@ -178,7 +172,7 @@ class SignalGenerator:
                 f"sell_conditions={sell_conditions}/3"
             )
 
-        # Add MACD context to reasons (informational, not used in core logic)
+        # Add MACD context to reasons (informational)
         if macd is not None:
             reasons["macd_line"] = macd["macd_line"]
             reasons["macd_signal"] = macd["signal_line"]
@@ -206,7 +200,7 @@ class SignalGenerator:
         )
 
         logger.info(
-            "Generated signal for %s: action=%s, confidence=%.2f, price=%.2f",
+            "Generated signal for %s: action=%s, confidence=%.2f, price=%.2f (using strategy params)",
             symbol,
             action.value,
             confidence,

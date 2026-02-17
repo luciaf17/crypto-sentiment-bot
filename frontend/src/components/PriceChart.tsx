@@ -11,6 +11,7 @@ import {
 } from 'recharts';
 import { Loader2, AlertCircle } from 'lucide-react';
 import { useChartData, useSignals } from '../hooks/useApiData';
+import { InfoTooltip } from './Tooltip';
 
 const TIME_RANGES = [
   { label: '4H', hours: 4 },
@@ -37,7 +38,7 @@ export default function PriceChart() {
     return (
       <div className="flex items-center justify-center py-20 text-red-400">
         <AlertCircle className="w-6 h-6 mr-2" />
-        <span>Failed to load chart data</span>
+        <span>Error al cargar datos del gráfico</span>
       </div>
     );
   }
@@ -86,7 +87,7 @@ export default function PriceChart() {
     <div className="space-y-4">
       <div className="bg-gray-800 rounded-xl p-6 border border-gray-700/50">
         <div className="flex items-center justify-between mb-6">
-          <h2 className="text-lg font-semibold text-white">BTC/USDT Price Chart</h2>
+          <h2 className="text-lg font-semibold text-white">Gráfico de Precio BTC/USDT</h2>
           <div className="flex gap-1">
             {TIME_RANGES.map((r) => (
               <button
@@ -129,9 +130,9 @@ export default function PriceChart() {
                 }}
                 formatter={(value: number, name: string) => [
                   `$${value.toLocaleString(undefined, { minimumFractionDigits: 2 })}`,
-                  name === 'close' ? 'Price' : name === 'ma7' ? 'MA(7)' : 'MA(25)',
+                  name === 'close' ? 'Precio' : name === 'ma7' ? 'MA(7)' : 'MA(25)',
                 ]}
-                labelFormatter={(label: string) => `Time: ${label}`}
+                labelFormatter={(label: string) => `Hora: ${label}`}
               />
               <Line
                 type="monotone"
@@ -180,23 +181,29 @@ export default function PriceChart() {
         <div className="flex flex-wrap gap-6 mt-4 text-sm">
           <div className="flex items-center gap-2">
             <div className="w-4 h-0.5 bg-blue-500" />
-            <span className="text-gray-400">Price</span>
+            <span className="text-gray-400">Precio</span>
           </div>
           <div className="flex items-center gap-2">
             <div className="w-4 h-0.5 bg-yellow-500 border-dashed" />
-            <span className="text-gray-400">MA(7)</span>
+            <span className="text-gray-400">
+              MA(7)
+              <InfoTooltip text="Media Móvil de 7 períodos. Promedio del precio en los últimos 7 intervalos. Identifica tendencias a corto plazo." />
+            </span>
           </div>
           <div className="flex items-center gap-2">
             <div className="w-4 h-0.5 bg-purple-500 border-dashed" />
-            <span className="text-gray-400">MA(25)</span>
+            <span className="text-gray-400">
+              MA(25)
+              <InfoTooltip text="Media Móvil de 25 períodos. Promedio del precio en los últimos 25 intervalos. Identifica tendencias a mediano plazo." />
+            </span>
           </div>
           <div className="flex items-center gap-2">
             <div className="w-3 h-3 rounded-full bg-emerald-500" />
-            <span className="text-gray-400">BUY Signal</span>
+            <span className="text-gray-400">Señal Compra</span>
           </div>
           <div className="flex items-center gap-2">
             <div className="w-3 h-3 rounded-full bg-red-500" />
-            <span className="text-gray-400">SELL Signal</span>
+            <span className="text-gray-400">Señal Venta</span>
           </div>
         </div>
       </div>

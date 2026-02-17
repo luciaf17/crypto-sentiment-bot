@@ -8,6 +8,7 @@ import {
   ArrowLeftRight,
   Brain,
   FlaskConical,
+  Settings,
   Menu,
   X,
   Bitcoin,
@@ -18,6 +19,7 @@ import SignalsTable from './components/SignalsTable';
 import TradesTable from './components/TradesTable';
 import SentimentBreakdown from './components/SentimentBreakdown';
 import Backtest from './components/Backtest';
+import StrategyTuner from './components/StrategyTuner';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -29,12 +31,13 @@ const queryClient = new QueryClient({
 });
 
 const NAV_ITEMS = [
-  { path: '/', label: 'Overview', icon: LayoutDashboard },
-  { path: '/charts', label: 'Charts', icon: LineChart },
-  { path: '/signals', label: 'Signals', icon: Radio },
-  { path: '/trades', label: 'Trades', icon: ArrowLeftRight },
-  { path: '/sentiment', label: 'Sentiment', icon: Brain },
-  { path: '/backtest', label: 'Backtest', icon: FlaskConical },
+  { path: '/', label: 'Vista General', icon: LayoutDashboard },
+  { path: '/charts', label: 'Gráficos', icon: LineChart },
+  { path: '/signals', label: 'Señales', icon: Radio },
+  { path: '/trades', label: 'Operaciones', icon: ArrowLeftRight },
+  { path: '/sentiment', label: 'Sentimiento', icon: Brain },
+  { path: '/backtest', label: 'Prueba Histórica', icon: FlaskConical },
+  { path: '/strategy', label: 'Estrategia', icon: Settings },
 ];
 
 function Sidebar({ open, onClose }: { open: boolean; onClose: () => void }) {
@@ -87,7 +90,7 @@ function Sidebar({ open, onClose }: { open: boolean; onClose: () => void }) {
         <div className="absolute bottom-0 left-0 right-0 px-6 py-4 border-t border-gray-800">
           <div className="flex items-center gap-2">
             <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-            <span className="text-xs text-gray-400">Live - 10s polling</span>
+            <span className="text-xs text-gray-400">En Vivo - actualización cada 10s</span>
           </div>
         </div>
       </aside>
@@ -113,7 +116,7 @@ function Layout() {
             <Menu className="w-6 h-6" />
           </button>
           <h1 className="text-lg font-semibold text-white">
-            Crypto Sentiment Trading Bot
+            Bot de Trading con Sentimiento Cripto
           </h1>
         </header>
 
@@ -126,6 +129,7 @@ function Layout() {
             <Route path="/trades" element={<TradesTable />} />
             <Route path="/sentiment" element={<SentimentBreakdown />} />
             <Route path="/backtest" element={<Backtest />} />
+            <Route path="/strategy" element={<StrategyTuner />} />
           </Routes>
         </main>
       </div>

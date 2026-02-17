@@ -101,6 +101,48 @@ class BacktestResponse(BaseModel):
     created_at: datetime | None = None
 
 
+class QuickBacktestRequest(BaseModel):
+    """Input for a quick backtest using Strategy Tuner parameters."""
+
+    symbol: str = Field(default="BTC/USDT", description="Trading pair symbol")
+    strategy_params: dict = Field(
+        ...,
+        description="Strategy parameters from the Strategy Tuner preview",
+    )
+    days: int = Field(
+        default=7,
+        ge=1,
+        le=90,
+        description="Number of days to backtest (default: 7)",
+    )
+
+
+class ActiveStrategyComparison(BaseModel):
+    """Comparison between the tested strategy and the current active one."""
+
+    active_strategy_name: str
+    active_pnl: float
+    active_pnl_percent: float
+    active_win_rate: float
+    active_total_trades: int
+    active_sharpe_ratio: float | None = None
+    pnl_difference: float
+    pnl_percent_difference: float
+    win_rate_difference: float
+    is_better: bool = Field(
+        description="True if the tested strategy outperformed the active one"
+    )
+
+
+class QuickBacktestResponse(BaseModel):
+    """Response for the quick backtest endpoint with optional comparison."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    result: BacktestResponse
+    comparison: ActiveStrategyComparison | None = None
+
+
 class BacktestCompareResponse(BaseModel):
     """Comparison of multiple backtest runs side-by-side."""
 

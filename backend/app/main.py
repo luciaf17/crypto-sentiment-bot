@@ -2,6 +2,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.api import backtest_router, health_router, prices_router, signals_router, trades_router
+from app.api import strategy
 from app.config import get_settings
 
 settings = get_settings()
@@ -30,6 +31,7 @@ app.include_router(health_router, prefix="/api")
 app.include_router(signals_router, prefix="/api")
 app.include_router(trades_router, prefix="/api")
 app.include_router(backtest_router, prefix="/api")
+app.include_router(strategy.router, prefix="/api")
 
 
 @app.get("/")

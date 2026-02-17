@@ -76,8 +76,9 @@ class Backtester:
             end_date: End of the backtest period (inclusive).
                 Falls back to now when *None*.
             strategy_params: Optional dict overriding default strategy
-                parameters (rsi_oversold, rsi_overbought, position_size,
-                stop_loss_percent, take_profit_percent, initial_balance).
+                parameters.  Accepts both backtester naming
+                (rsi_oversold/rsi_overbought) and strategy naming
+                (rsi_buy/rsi_sell) — the latter is auto-mapped.
             save: Whether to persist the result to the database.
 
         Returns:
@@ -89,7 +90,8 @@ class Backtester:
         if end_date is None:
             end_date = datetime.now(timezone.utc)
 
-        params = {**DEFAULT_STRATEGY_PARAMS, **(strategy_params or {})}
+        mapped = self._map_strategy_params(strategy_params or {})
+        params = {**DEFAULT_STRATEGY_PARAMS, **mapped}
 
         session = SessionLocal()
         try:
@@ -640,6 +642,22 @@ class Backtester:
     # ------------------------------------------------------------------
     # Empty metrics template
     # ------------------------------------------------------------------
+
+    @staticmethod
+    def _map_strategy_params(raw: dict) -> dict:
+        """Map Strategy Tuner parameter names to backtester names.
+
+        The Strategy system uses ``rsi_buy`` / ``rsi_sell`` while the
+        backtester internally uses ``rsi_oversold`` / ``rsi_overbought``.
+        This helper accepts either convention and returns a dict that the
+        backtester can merge directly into its defaults.
+        """
+        mapped = dict(raw)
+        if "rsi_buy" in mapped and "rsi_oversold" not in mapped:
+            mapped["rsi_oversold"] = mapped.pop("rsi_buy")
+        if "rsi_sell" in mapped and "rsi_overbought" not in mapped:
+            mapped["rsi_overbought"] = mapped.pop("rsi_sell")
+        return mapped
 
     @staticmethod
     def _empty_metrics(initial_balance: float) -> dict:

@@ -5,18 +5,23 @@ multiple strategy variations side-by-side.
 """
 
 import logging
+from datetime import datetime, timedelta, timezone
 
 from fastapi import APIRouter, HTTPException, Query
 
 from app.schemas.backtest import (
+    ActiveStrategyComparison,
     BacktestCompareResponse,
     BacktestMetrics,
     BacktestRequest,
     BacktestResponse,
     BacktestTradeSchema,
     EquityCurvePoint,
+    QuickBacktestRequest,
+    QuickBacktestResponse,
 )
 from app.services.backtester import Backtester
+from app.services.strategy_manager import StrategyManager
 
 logger = logging.getLogger(__name__)
 
@@ -46,6 +51,83 @@ async def run_backtest(request: BacktestRequest) -> BacktestResponse:
         raise HTTPException(status_code=500, detail=str(exc)) from exc
 
     return _result_to_response(result)
+
+
+@router.post("/quick", response_model=QuickBacktestResponse)
+async def quick_backtest(request: QuickBacktestRequest) -> QuickBacktestResponse:
+    """Run a quick backtest (default last 7 days) with strategy comparison.
+
+    Designed for the Strategy Tuner: accepts preview parameters, runs the
+    backtest, and optionally compares results against the current active
+    strategy over the same period.
+    """
+    backtester = Backtester()
+    end_date = datetime.now(timezone.utc)
+    start_date = end_date - timedelta(days=request.days)
+
+    try:
+        result = backtester.run_backtest(
+            symbol=request.symbol,
+            start_date=start_date,
+            end_date=end_date,
+            strategy_params=request.strategy_params,
+            save=False,
+        )
+    except Exception as exc:
+        logger.exception("Quick backtest failed: %s", exc)
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+
+    response = _result_to_response(result)
+
+    # Compare against active strategy if one exists
+    comparison = None
+    active = StrategyManager.get_active_strategy()
+    if active is not None:
+        try:
+            active_result = backtester.run_backtest(
+                symbol=request.symbol,
+                start_date=start_date,
+                end_date=end_date,
+                strategy_params=active.parameters,
+                save=False,
+            )
+            active_metrics = active_result.get("metrics", {})
+            tested_metrics = result.get("metrics", {})
+
+            comparison = ActiveStrategyComparison(
+                active_strategy_name=active.name,
+                active_pnl=active_metrics.get("total_pnl", 0.0),
+                active_pnl_percent=active_metrics.get("total_pnl_percent", 0.0),
+                active_win_rate=active_metrics.get("win_rate", 0.0),
+                active_total_trades=active_metrics.get("total_trades", 0),
+                active_sharpe_ratio=active_metrics.get("sharpe_ratio"),
+                pnl_difference=round(
+                    tested_metrics.get("total_pnl", 0.0)
+                    - active_metrics.get("total_pnl", 0.0),
+                    2,
+                ),
+                pnl_percent_difference=round(
+                    tested_metrics.get("total_pnl_percent", 0.0)
+                    - active_metrics.get("total_pnl_percent", 0.0),
+                    2,
+                ),
+                win_rate_difference=round(
+                    tested_metrics.get("win_rate", 0.0)
+                    - active_metrics.get("win_rate", 0.0),
+                    2,
+                ),
+                is_better=(
+                    tested_metrics.get("total_pnl", 0.0)
+                    > active_metrics.get("total_pnl", 0.0)
+                ),
+            )
+        except Exception:
+            logger.warning(
+                "Failed to run comparison backtest for active strategy",
+                exc_info=True,
+            )
+
+    return QuickBacktestResponse(result=response, comparison=comparison)
 
 
 @router.get("/results/{backtest_id}", response_model=BacktestResponse)

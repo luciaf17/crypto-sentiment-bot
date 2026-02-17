@@ -1,5 +1,6 @@
 import { Loader2, AlertCircle, Newspaper } from 'lucide-react';
 import { useSentiment, useSignals } from '../hooks/useApiData';
+import { InfoTooltip } from './Tooltip';
 
 function SentimentBar({
   label,
@@ -43,14 +44,14 @@ function FearGreedGauge({ value }: { value: number }) {
   // Fear & Greed: 0-100 scale, map to label
   const label =
     value <= 20
-      ? 'Extreme Fear'
+      ? 'Miedo Extremo'
       : value <= 40
-      ? 'Fear'
+      ? 'Miedo'
       : value <= 60
       ? 'Neutral'
       : value <= 80
-      ? 'Greed'
-      : 'Extreme Greed';
+      ? 'Codicia'
+      : 'Codicia Extrema';
 
   const color =
     value <= 20
@@ -65,7 +66,10 @@ function FearGreedGauge({ value }: { value: number }) {
 
   return (
     <div className="bg-gray-800 rounded-xl p-6 border border-gray-700/50">
-      <div className="text-sm text-gray-400 mb-4">Fear & Greed Index</div>
+      <div className="text-sm text-gray-400 mb-4">
+        Índice de Miedo y Codicia
+        <InfoTooltip text="Índice de miedo/codicia del mercado (0-100). <25 = miedo extremo (posible oportunidad de compra), >75 = codicia extrema (posible sobrevaloración)." />
+      </div>
       <div className="flex items-center justify-center">
         <div className="relative w-32 h-32">
           <svg viewBox="0 0 120 120" className="w-full h-full -rotate-90">
@@ -114,7 +118,7 @@ export default function SentimentBreakdown() {
     return (
       <div className="flex items-center justify-center py-20 text-red-400">
         <AlertCircle className="w-6 h-6 mr-2" />
-        <span>Failed to load sentiment data</span>
+        <span>Error al cargar datos de sentimiento</span>
       </div>
     );
   }
@@ -148,24 +152,27 @@ export default function SentimentBreakdown() {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Sentiment Sources */}
         <div className="lg:col-span-2 bg-gray-800 rounded-xl p-6 border border-gray-700/50">
-          <h2 className="text-lg font-semibold text-white mb-6">Sentiment Sources</h2>
+          <h2 className="text-lg font-semibold text-white mb-6">
+            Fuentes de Sentimiento
+            <InfoTooltip text="Puntuación de sentimiento del mercado basada en noticias y redes sociales. Escala -1 (muy negativo) a +1 (muy positivo)." />
+          </h2>
           <div className="space-y-6">
             <SentimentBar
               label="CryptoPanic"
               value={cryptoPanicScore}
-              description="Crypto news aggregator"
+              description="Agregador de noticias cripto"
             />
             <SentimentBar
               label="NewsAPI"
               value={newsApiScore}
-              description="General financial news"
+              description="Noticias financieras generales"
             />
-            <SentimentBar label="Weighted Average" value={avgScore} />
+            <SentimentBar label="Promedio Ponderado" value={avgScore} />
           </div>
 
           <div className="mt-6 pt-4 border-t border-gray-700/50">
             <div className="flex justify-between text-sm">
-              <span className="text-gray-400">Combined Sentiment</span>
+              <span className="text-gray-400">Sentimiento Combinado</span>
               <span
                 className={`font-bold ${
                   avgScore > 0.1
@@ -175,7 +182,7 @@ export default function SentimentBreakdown() {
                     : 'text-yellow-400'
                 }`}
               >
-                {avgScore > 0.1 ? 'Bullish' : avgScore < -0.1 ? 'Bearish' : 'Neutral'} (
+                {avgScore > 0.1 ? 'Alcista' : avgScore < -0.1 ? 'Bajista' : 'Neutral'} (
                 {avgScore.toFixed(3)})
               </span>
             </div>
@@ -190,11 +197,11 @@ export default function SentimentBreakdown() {
       <div className="bg-gray-800 rounded-xl p-6 border border-gray-700/50">
         <div className="flex items-center gap-2 mb-4">
           <Newspaper className="w-5 h-5 text-gray-400" />
-          <h2 className="text-lg font-semibold text-white">Recent Signal Reasons</h2>
+          <h2 className="text-lg font-semibold text-white">Razones de Señales Recientes</h2>
         </div>
 
         {headlines.length === 0 ? (
-          <p className="text-gray-500 text-sm">No recent headlines available</p>
+          <p className="text-gray-500 text-sm">No hay titulares recientes disponibles</p>
         ) : (
           <div className="space-y-3">
             {headlines.map((h, i) => (

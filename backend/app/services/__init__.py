@@ -7,6 +7,7 @@ from .price_collector import PriceCollectorService
 from .sentiment_analyzer import SentimentAnalyzer
 from .signal_generator import SignalGenerator
 from .technical_indicators import TechnicalIndicators
+from .strategy_manager import StrategyManager
 
 __all__ = [
     "Backtester",
@@ -17,5 +18,6 @@ __all__ = [
     "PriceCollectorService",
     "SentimentAnalyzer",
     "SignalGenerator",
+    "StrategyManager",
     "TechnicalIndicators",
 ]

@@ -1,5 +1,6 @@
 from .backtest import BacktestRun
 from .base import Base
+from .strategy import StrategyConfig
 from .trading import (
     PriceHistory,
     SentimentScore,
@@ -16,6 +17,7 @@ __all__ = [
     "SentimentScore",
     "Signal",
     "SignalAction",
+    "StrategyConfig",
     "Trade",
     "TradeStatus",
 ]

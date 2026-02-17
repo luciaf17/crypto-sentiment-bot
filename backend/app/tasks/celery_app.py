@@ -24,7 +24,7 @@ celery_app.conf.update(
         },
         "analyze-btc-sentiment-every-15-minutes": {
             "task": "app.tasks.sentiment_tasks.analyze_btc_sentiment",
-            "schedule": 900.0,  # 15 minutes in seconds
+            "schedule": 3600.0,  # 15 minutes in seconds
         },
         "generate-trading-signal-every-hour": {
             "task": "app.tasks.signal_tasks.generate_trading_signal",

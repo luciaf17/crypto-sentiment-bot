@@ -11,6 +11,7 @@ import {
 } from 'recharts';
 import { Play, Loader2, AlertCircle, TrendingUp, TrendingDown } from 'lucide-react';
 import { runBacktest } from '../api/client';
+import { InfoTooltip } from './Tooltip';
 import type { BacktestRequest, BacktestResponse } from '../types';
 
 const DEFAULT_PARAMS: BacktestRequest = {
@@ -34,6 +35,7 @@ function ParamInput({
   step = 1,
   min,
   max,
+  tooltip,
 }: {
   label: string;
   value: number;
@@ -41,10 +43,14 @@ function ParamInput({
   step?: number;
   min?: number;
   max?: number;
+  tooltip?: string;
 }) {
   return (
     <div>
-      <label className="block text-xs text-gray-400 mb-1">{label}</label>
+      <label className="block text-xs text-gray-400 mb-1">
+        {label}
+        {tooltip && <InfoTooltip text={tooltip} />}
+      </label>
       <input
         type="number"
         value={value}
@@ -77,11 +83,11 @@ export default function Backtest() {
     <div className="space-y-6">
       {/* Parameters */}
       <div className="bg-gray-800 rounded-xl p-6 border border-gray-700/50">
-        <h2 className="text-lg font-semibold text-white mb-4">Backtest Configuration</h2>
+        <h2 className="text-lg font-semibold text-white mb-4">Configuración de Prueba Histórica</h2>
 
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
           <div>
-            <label className="block text-xs text-gray-400 mb-1">Start Date</label>
+            <label className="block text-xs text-gray-400 mb-1">Fecha Inicio</label>
             <input
               type="date"
               value={params.start_date.slice(0, 10)}
@@ -92,7 +98,7 @@ export default function Backtest() {
             />
           </div>
           <div>
-            <label className="block text-xs text-gray-400 mb-1">End Date</label>
+            <label className="block text-xs text-gray-400 mb-1">Fecha Fin</label>
             <input
               type="date"
               value={params.end_date.slice(0, 10)}
@@ -103,24 +109,26 @@ export default function Backtest() {
             />
           </div>
           <ParamInput
-            label="RSI Oversold"
+            label="RSI Sobrevendido"
             value={params.strategy_params.rsi_oversold}
             onChange={(v) => updateStrategy('rsi_oversold', v)}
             min={10}
             max={50}
+            tooltip="Índice de Fuerza Relativa. Valores por debajo de este umbral indican posible oportunidad de compra."
           />
           <ParamInput
-            label="RSI Overbought"
+            label="RSI Sobrecomprado"
             value={params.strategy_params.rsi_overbought}
             onChange={(v) => updateStrategy('rsi_overbought', v)}
             min={50}
             max={90}
+            tooltip="Índice de Fuerza Relativa. Valores por encima de este umbral indican posible oportunidad de venta."
           />
         </div>
 
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
           <ParamInput
-            label="Position Size"
+            label="Tamaño Posición"
             value={params.strategy_params.position_size}
             onChange={(v) => updateStrategy('position_size', v)}
             step={0.01}
@@ -134,6 +142,7 @@ export default function Backtest() {
             step={0.5}
             min={0.5}
             max={20}
+            tooltip="Pérdida máxima permitida antes de cerrar automáticamente. Protege tu capital limitando pérdidas."
           />
           <ParamInput
             label="Take Profit %"
@@ -142,9 +151,10 @@ export default function Backtest() {
             step={0.5}
             min={1}
             max={50}
+            tooltip="Ganancia objetivo antes de cerrar automáticamente. Asegura ganancias cuando el precio alcanza tu meta."
           />
           <ParamInput
-            label="Initial Balance"
+            label="Balance Inicial"
             value={params.strategy_params.initial_balance}
             onChange={(v) => updateStrategy('initial_balance', v)}
             step={1000}
@@ -160,12 +170,12 @@ export default function Backtest() {
           {mutation.isPending ? (
             <>
               <Loader2 className="w-4 h-4 animate-spin" />
-              Running...
+              Ejecutando prueba...
             </>
           ) : (
             <>
               <Play className="w-4 h-4" />
-              Run Backtest
+              Ejecutar Prueba
             </>
           )}
         </button>
@@ -173,7 +183,7 @@ export default function Backtest() {
         {mutation.isError && (
           <div className="mt-4 flex items-center gap-2 text-red-400 text-sm">
             <AlertCircle className="w-4 h-4" />
-            <span>Backtest failed: {(mutation.error as Error).message}</span>
+            <span>Error en prueba: {(mutation.error as Error).message}</span>
           </div>
         )}
       </div>
@@ -185,23 +195,23 @@ export default function Backtest() {
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
             {[
               {
-                label: 'Total P&L',
+                label: 'G/P Total',
                 value: `$${result.metrics.total_pnl.toLocaleString(undefined, { minimumFractionDigits: 2 })}`,
                 color: result.metrics.total_pnl >= 0 ? 'text-emerald-400' : 'text-red-400',
                 icon: result.metrics.total_pnl >= 0 ? TrendingUp : TrendingDown,
               },
               {
-                label: 'Win Rate',
+                label: 'Tasa de Aciertos',
                 value: `${result.metrics.win_rate.toFixed(1)}%`,
                 color: result.metrics.win_rate >= 50 ? 'text-emerald-400' : 'text-red-400',
               },
               {
-                label: 'Total Trades',
+                label: 'Total Operaciones',
                 value: String(result.metrics.total_trades),
                 color: 'text-blue-400',
               },
               {
-                label: 'Profit Factor',
+                label: 'Factor de Ganancia',
                 value: result.metrics.profit_factor.toFixed(2),
                 color: result.metrics.profit_factor >= 1 ? 'text-emerald-400' : 'text-red-400',
               },
@@ -209,25 +219,30 @@ export default function Backtest() {
                 label: 'Sharpe Ratio',
                 value: result.metrics.sharpe_ratio.toFixed(2),
                 color: result.metrics.sharpe_ratio >= 1 ? 'text-emerald-400' : 'text-yellow-400',
+                tooltip: 'Retorno ajustado por riesgo. >1 es bueno, >2 es excelente. Valores negativos indican pérdidas.',
               },
               {
-                label: 'Max Drawdown',
+                label: 'Máx. Drawdown',
                 value: `${result.metrics.max_drawdown_percent.toFixed(2)}%`,
                 color: 'text-red-400',
+                tooltip: 'Máxima pérdida desde un pico hasta un valle. Mide el peor escenario posible.',
               },
               {
-                label: 'Final Balance',
+                label: 'Balance Final',
                 value: `$${result.metrics.final_balance.toLocaleString()}`,
                 color: 'text-gray-200',
               },
               {
-                label: 'Avg Hold (hrs)',
+                label: 'Duración Prom. (hrs)',
                 value: result.metrics.avg_hold_duration_hours.toFixed(1),
                 color: 'text-gray-200',
               },
             ].map((m) => (
               <div key={m.label} className="bg-gray-800 rounded-xl p-4 border border-gray-700/50">
-                <div className="text-xs text-gray-400">{m.label}</div>
+                <div className="text-xs text-gray-400">
+                  {m.label}
+                  {'tooltip' in m && m.tooltip && <InfoTooltip text={m.tooltip} />}
+                </div>
                 <div className={`text-lg font-bold mt-1 ${m.color}`}>{m.value}</div>
               </div>
             ))}
@@ -236,7 +251,7 @@ export default function Backtest() {
           {/* Equity Curve */}
           {result.equity_curve && result.equity_curve.length > 0 && (
             <div className="bg-gray-800 rounded-xl p-6 border border-gray-700/50">
-              <h3 className="text-lg font-semibold text-white mb-4">Equity Curve</h3>
+              <h3 className="text-lg font-semibold text-white mb-4">Curva de Capital</h3>
               <div className="h-[300px]">
                 <ResponsiveContainer width="100%" height="100%">
                   <LineChart
@@ -281,13 +296,13 @@ export default function Backtest() {
           {result.trades && result.trades.length > 0 && (
             <div className="bg-gray-800 rounded-xl border border-gray-700/50 overflow-hidden">
               <div className="px-6 py-4 border-b border-gray-700/50">
-                <h3 className="text-lg font-semibold text-white">Backtest Trades</h3>
+                <h3 className="text-lg font-semibold text-white">Operaciones de la Prueba</h3>
               </div>
               <div className="overflow-x-auto">
                 <table className="w-full">
                   <thead>
                     <tr className="bg-gray-900/50">
-                      {['Entry Time', 'Entry', 'Exit', 'P&L', 'P&L %', 'Exit Reason', 'RSI'].map(
+                      {['Hora Entrada', 'Entrada', 'Salida', 'G/P', 'G/P %', 'Razón Salida', 'RSI'].map(
                         (h) => (
                           <th
                             key={h}
